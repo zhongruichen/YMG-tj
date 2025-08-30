@@ -80,31 +80,82 @@ export async function POST(request: NextRequest) {
     const response = await fetch(url, fetchOptions);
     console.log(`📨 收到响应: ${response.status} ${response.statusText}`);
 
-    // 解析响应
     const contentType = response.headers.get('content-type') || '';
-    let responseData: any;
 
-    try {
-      if (contentType.includes('application/json')) {
-        responseData = await response.json();
-      } else {
-        responseData = await response.text();
+    // 检查是否为流式响应
+    if (contentType.includes('text/event-stream')) {
+      console.log('🚀 检测到流式响应，直接转发');
+
+      // 直接转发流式响应
+      const stream = new ReadableStream({
+        async start(controller) {
+          if (!response.body) {
+            controller.close();
+            return;
+          }
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) {
+                break;
+              }
+              // 如果需要，可以在这里检查或修改数据块
+              // console.log('流式数据块:', decoder.decode(value));
+              controller.enqueue(value);
+            }
+          } catch (error) {
+            console.error('❌ 转发流时出错:', error);
+            controller.error(error);
+          } finally {
+            reader.releaseLock();
+            controller.close();
+            console.log('✅ 流式响应转发完成');
+          }
+        }
+      });
+
+      // 创建一个新的Headers对象，并复制所有原始响应头
+      const headers = new Headers();
+      response.headers.forEach((value, key) => {
+        headers.append(key, value);
+      });
+      // 确保我们的代理不被其他代理缓冲
+      headers.set("X-Accel-Buffering", "no");
+
+      return new NextResponse(stream, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: headers,
+      });
+
+    } else {
+      // 处理非流式响应
+      console.log('📦 处理非流式响应');
+      let responseData: any;
+      try {
+        if (contentType.includes('application/json')) {
+          responseData = await response.json();
+        } else {
+          responseData = await response.text();
+        }
+      } catch (parseError) {
+        console.error('❌ 解析响应失败:', parseError);
+        responseData = await response.text(); // 降级到文本
       }
-    } catch (parseError) {
-      console.error('❌ 解析响应失败:', parseError);
-      responseData = await response.text(); // 降级到文本
+
+      console.log('✅ 代理请求成功');
+
+      return NextResponse.json({
+        success: response.ok,
+        status: response.status,
+        statusText: response.statusText,
+        data: responseData,
+        contentType
+      });
     }
-
-    console.log('✅ 代理请求成功');
-
-    // 返回结果
-    return NextResponse.json({
-      success: response.ok,
-      status: response.status,
-      statusText: response.statusText,
-      data: responseData,
-      contentType
-    });
 
   } catch (error) {
     console.error('❌ 代理请求出错:', error);
