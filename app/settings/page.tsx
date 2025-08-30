@@ -348,6 +348,9 @@ export default function SettingsPage() {
 
   // ===== 连接测试功能 =====
   const handleTestConnection = async () => {
+    // 🔥 重要：先保存设置再测试
+    handleSave();
+
     setIsTestingConnection(true);
     setConnectionTestResult(null);
     
