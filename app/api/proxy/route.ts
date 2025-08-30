@@ -192,21 +192,62 @@ export async function GET(request: NextRequest) {
     });
 
     const contentType = response.headers.get('content-type') || '';
-    let data: any;
 
-    if (contentType.includes('application/json')) {
-      data = await response.json();
+    // 检查是否为流式响应
+    if (contentType.includes('text/event-stream')) {
+      console.log('🚀 检测到GET请求的流式响应，直接转发');
+
+      const stream = new ReadableStream({
+        async start(controller) {
+          if (!response.body) {
+            controller.close();
+            return;
+          }
+          const reader = response.body.getReader();
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              controller.enqueue(value);
+            }
+          } catch (error) {
+            controller.error(error);
+          } finally {
+            reader.releaseLock();
+            controller.close();
+          }
+        }
+      });
+
+      const headers = new Headers();
+      response.headers.forEach((value, key) => {
+        headers.append(key, value);
+      });
+      headers.set("X-Accel-Buffering", "no");
+
+      return new NextResponse(stream, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: headers,
+      });
+
     } else {
-      data = await response.text();
-    }
+      // 处理非流式响应
+      let data: any;
+      if (contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        data = await response.text();
+      }
 
-    return NextResponse.json({
-      success: response.ok,
-      status: response.status,
-      statusText: response.statusText,
-      data,
-      contentType
-    });
+      return NextResponse.json({
+        success: response.ok,
+        status: response.status,
+        statusText: response.statusText,
+        data,
+        contentType
+      });
+    }
 
   } catch (error) {
     console.error('❌ GET代理请求失败:', error);
