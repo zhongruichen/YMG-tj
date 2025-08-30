@@ -37,16 +37,16 @@ export async function POST(request: NextRequest) {
     }
 
     // 安全检查 - 防止访问内网
-    const hostname = targetUrl.hostname.toLowerCase();
-    const dangerousHosts = ['localhost', '127.0.0.1'];
-    const dangerousPatterns = [/^192\.168\./, /^10\./, /^172\.(1[6-9]|2[0-9]|3[0-1])\./];
+    // const hostname = targetUrl.hostname.toLowerCase();
+    // const dangerousHosts = ['localhost', '127.0.0.1'];
+    // const dangerousPatterns = [/^192\.168\./, /^10\./, /^172\.(1[6-9]|2[0-9]|3[0-1])\./];
     
-    if (dangerousHosts.includes(hostname) || 
-        dangerousPatterns.some(pattern => pattern.test(hostname)) ||
-        hostname.endsWith('.local')) {
-      console.error('❌ 禁止访问内网地址:', hostname);
-      return NextResponse.json({ error: '禁止访问内网地址', success: false }, { status: 403 });
-    }
+    // if (dangerousHosts.includes(hostname) ||
+    //     dangerousPatterns.some(pattern => pattern.test(hostname)) ||
+    //     hostname.endsWith('.local')) {
+    //   console.error('❌ 禁止访问内网地址:', hostname);
+    //   return NextResponse.json({ error: '禁止访问内网地址', success: false }, { status: 403 });
+    // }
 
     console.log(`🚀 开始代理请求: ${method} ${url}`);
 
